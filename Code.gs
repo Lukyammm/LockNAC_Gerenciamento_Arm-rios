@@ -2300,13 +2300,52 @@ function getPlanilhaLiberacao(parametros) {
   var timezone = obterTimeZoneAplicacao();
 
   try {
-    var dataParametro = parametros && parametros.data !== undefined ? parametros.data : '';
-    var dataFiltro = interpretarDataParametroSeguro(dataParametro, timezone) || obterDataAtualNormalizada(timezone);
-    if (!dataFiltro) {
-      dataFiltro = obterDataAtualNormalizada(timezone);
+    var params = parametros || {};
+    var pacienteFiltroTexto = params.paciente !== undefined && params.paciente !== null
+      ? params.paciente.toString().trim()
+      : '';
+    var prontuarioFiltroTexto = params.prontuario !== undefined && params.prontuario !== null
+      ? params.prontuario.toString().trim()
+      : '';
+
+    var dataInicioParametro = params.dataInicio !== undefined ? params.dataInicio : params.data;
+    var dataFimParametro = params.dataFim !== undefined ? params.dataFim : params.data;
+
+    var dataInicio = interpretarDataParametroSeguro(dataInicioParametro, timezone);
+    var dataFim = interpretarDataParametroSeguro(dataFimParametro, timezone);
+
+    if (dataInicio && !dataFim) {
+      dataFim = dataInicio;
+    }
+    if (dataFim && !dataInicio) {
+      dataInicio = dataFim;
     }
 
-    var dataFiltroChave = gerarChaveDataComparacao(dataFiltro, timezone);
+    if (!dataInicio && !dataFim) {
+      var dataPadrao = obterDataAtualNormalizada(timezone);
+      dataInicio = dataPadrao;
+      dataFim = dataPadrao;
+    }
+
+    if (!dataInicio || !dataFim) {
+      return { success: false, error: 'Informe um período válido para realizar a busca.' };
+    }
+
+    if (dataInicio.getTime() > dataFim.getTime()) {
+      var temp = dataInicio;
+      dataInicio = dataFim;
+      dataFim = temp;
+    }
+
+    var chaveInicio = gerarChaveDataComparacao(dataInicio, timezone);
+    var chaveFim = gerarChaveDataComparacao(dataFim, timezone);
+
+    if (!chaveInicio || !chaveFim) {
+      return { success: false, error: 'Informe um período válido para realizar a busca.' };
+    }
+
+    var pacienteFiltroNormalizado = normalizarTextoBasico(pacienteFiltroTexto);
+    var prontuarioFiltroNormalizado = normalizarTextoBasico(prontuarioFiltroTexto);
 
     var spreadsheet;
     try {
@@ -2330,6 +2369,32 @@ function getPlanilhaLiberacao(parametros) {
     cabecalhos = cabecalhos.map(function(valor) {
       return valor === null || valor === undefined ? '' : valor;
     });
+    var cabecalhosNormalizados = cabecalhos.map(function(valor) {
+      return normalizarTextoBasico(valor);
+    });
+
+    function encontrarIndiceCabecalhoFlexivel(lista, termos) {
+      if (!Array.isArray(lista)) {
+        return -1;
+      }
+      var candidatos = Array.isArray(termos) ? termos : [termos];
+      for (var i = 0; i < lista.length; i++) {
+        var cabecalhoNormalizado = lista[i] || '';
+        for (var j = 0; j < candidatos.length; j++) {
+          var termoNormalizado = normalizarTextoBasico(candidatos[j]);
+          if (!termoNormalizado) {
+            continue;
+          }
+          if (cabecalhoNormalizado === termoNormalizado || cabecalhoNormalizado.indexOf(termoNormalizado) !== -1) {
+            return i;
+          }
+        }
+      }
+      return -1;
+    }
+
+    var indicePaciente = encontrarIndiceCabecalhoFlexivel(cabecalhosNormalizados, ['paciente']);
+    var indiceProntuario = encontrarIndiceCabecalhoFlexivel(cabecalhosNormalizados, ['prontuario']);
 
     var totalLinhasDados = Math.max(sheet.getLastRow() - PLANILHA_LIBERACAO_LINHA_CABECALHO, 0);
     var linhasFiltradas = [];
@@ -2356,11 +2421,28 @@ function getPlanilhaLiberacao(parametros) {
         var dataLinha = extrairDataValidaDaCelula(valorData, exibicaoData, timezone);
         var chaveLinha = gerarChaveDataComparacao(dataLinha, timezone);
 
-        if (chaveLinha && chaveLinha === dataFiltroChave) {
-          linhasFiltradas.push(linhaExibicao.map(function(celula) {
-            return celula === null || celula === undefined ? '' : celula;
-          }));
+        if (!chaveLinha || chaveLinha < chaveInicio || chaveLinha > chaveFim) {
+          continue;
         }
+
+        var valorPaciente = indicePaciente >= 0 && indicePaciente < linhaExibicao.length
+          ? linhaExibicao[indicePaciente]
+          : '';
+        var valorProntuario = indiceProntuario >= 0 && indiceProntuario < linhaExibicao.length
+          ? linhaExibicao[indiceProntuario]
+          : '';
+
+        if (pacienteFiltroNormalizado && normalizarTextoBasico(valorPaciente).indexOf(pacienteFiltroNormalizado) === -1) {
+          continue;
+        }
+
+        if (prontuarioFiltroNormalizado && normalizarTextoBasico(valorProntuario).indexOf(prontuarioFiltroNormalizado) === -1) {
+          continue;
+        }
+
+        linhasFiltradas.push(linhaExibicao.map(function(celula) {
+          return celula === null || celula === undefined ? '' : celula;
+        }));
       }
     }
 
@@ -2369,8 +2451,12 @@ function getPlanilhaLiberacao(parametros) {
       columns: cabecalhos,
       rows: linhasFiltradas,
       filtro: {
-        data: Utilities.formatDate(dataFiltro, timezone, 'yyyy-MM-dd'),
-        dataFormatada: Utilities.formatDate(dataFiltro, timezone, 'dd/MM/yyyy')
+        dataInicio: Utilities.formatDate(dataInicio, timezone, 'yyyy-MM-dd'),
+        dataFim: Utilities.formatDate(dataFim, timezone, 'yyyy-MM-dd'),
+        dataInicioFormatada: Utilities.formatDate(dataInicio, timezone, 'dd/MM/yyyy'),
+        dataFimFormatada: Utilities.formatDate(dataFim, timezone, 'dd/MM/yyyy'),
+        paciente: pacienteFiltroTexto,
+        prontuario: prontuarioFiltroTexto
       },
       totalPlanilha: totalPlanilha,
       totalFiltrado: linhasFiltradas.length
