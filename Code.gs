@@ -994,6 +994,10 @@ function determinarResponsavelRegistro(valorPreferencial) {
       return texto;
     }
   }
+
+  if (usuarioContextoRequisicao) {
+    return usuarioContextoRequisicao;
+  }
   try {
     var usuarioAtivo = Session.getActiveUser();
     if (usuarioAtivo && typeof usuarioAtivo.getEmail === 'function') {
@@ -1086,9 +1090,48 @@ function adicionarDadosIniciais() {
 }
 
 // Função principal para lidar com requisições POST
+var usuarioContextoRequisicao = '';
+
+function definirContextoUsuario(parametros) {
+  usuarioContextoRequisicao = '';
+  try {
+    if (!parametros) {
+      return;
+    }
+
+    var camposCandidatos = [
+      'usuarioResponsavel',
+      'usuario',
+      'responsavel',
+      'responsavelRegistro',
+      'usuarioContexto',
+      'usuarioAcao'
+    ];
+
+    for (var i = 0; i < camposCandidatos.length; i++) {
+      var chave = camposCandidatos[i];
+      if (parametros[chave] !== undefined && parametros[chave] !== null) {
+        var texto = parametros[chave].toString().trim();
+        if (texto) {
+          usuarioContextoRequisicao = texto;
+          return;
+        }
+      }
+    }
+  } catch (erroContexto) {
+    usuarioContextoRequisicao = '';
+  }
+}
+
+function limparContextoUsuario() {
+  usuarioContextoRequisicao = '';
+}
+
 function handlePost(e) {
   var action = e.parameter.action;
-  
+
+  definirContextoUsuario(e && e.parameter);
+
   try {
     switch(action) {
       case 'getArmarios':
@@ -1208,6 +1251,8 @@ function handlePost(e) {
     registrarLog('ERRO', `Erro em handlePost: ${error.toString()}`);
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    limparContextoUsuario();
   }
 }
 
@@ -4273,30 +4318,7 @@ function registrarLog(acao, detalhes) {
     }
 
     var dataLog = obterDataHoraAtualFormatada().dataHoraIso;
-    var usuarioLog = '';
-    try {
-      var usuario = Session.getEffectiveUser();
-      if (usuario && typeof usuario.getEmail === 'function') {
-        usuarioLog = usuario.getEmail();
-      }
-    } catch (erroUsuario) {
-      usuarioLog = '';
-    }
-
-    if (!usuarioLog) {
-      try {
-        var usuarioAtivo = Session.getActiveUser();
-        if (usuarioAtivo && typeof usuarioAtivo.getEmail === 'function') {
-          usuarioLog = usuarioAtivo.getEmail();
-        }
-      } catch (erroAtivo) {
-        usuarioLog = '';
-      }
-    }
-
-    if (!usuarioLog) {
-      usuarioLog = 'desconhecido';
-    }
+    var usuarioLog = determinarResponsavelRegistro(usuarioContextoRequisicao) || 'desconhecido';
 
     var novaLinha = [
       dataLog,

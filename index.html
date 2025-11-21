@@ -3143,7 +3143,7 @@
             return {
                 perfilAtual: 'geral',
                 unidadeAtual: 'todas',
-                filtroAtual: 'todos',
+                filtrosSelecionados: ['todos'],
                 paginaAtual: 'dashboard',
                 armarios: [],
                 armariosCarregados: false,
@@ -4188,9 +4188,16 @@
             const intervaloBaseConfigurado = Number.isFinite(opcoes.intervaloInicial) && opcoes.intervaloInicial > 0
                 ? opcoes.intervaloInicial
                 : 400;
+            const payload = { ...(data || {}) };
+            if (!Object.prototype.hasOwnProperty.call(payload, 'usuarioResponsavel')) {
+                const responsavelAtual = obterDescricaoResponsavelAtual();
+                if (responsavelAtual) {
+                    payload.usuarioResponsavel = responsavelAtual;
+                }
+            }
             const entradas = [];
-            Object.keys(data || {}).forEach(key => {
-                const valor = data[key];
+            Object.keys(payload).forEach(key => {
+                const valor = payload[key];
                 if (valor === undefined || valor === null) {
                     entradas.push([key, '']);
                 } else if (valor instanceof Date) {
@@ -4918,12 +4925,13 @@
             // Filtros
             elementos.filterBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
-                    elementos.filterBtns.forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    estado.filtroAtual = this.dataset.filter;
+                    const filtro = this.dataset.filter || 'todos';
+                    alternarFiltroDashboard(filtro);
+                    atualizarBotoesFiltroDashboard();
                     renderizarArmarios();
                 });
             });
+            atualizarBotoesFiltroDashboard();
             const padraoLocalLiberacao = obterDataHoraLocalPadrao();
             if (elementos.liberacaoDataInicio) {
                 const padraoInicio = converterDataTextoParaISO(elementos.liberacaoDataInicio.value) || padraoLocalLiberacao.data;
@@ -5174,6 +5182,39 @@
                 renderizarArmarios();
             }
         }
+        function obterFiltrosAtivosDashboard() {
+            if (!Array.isArray(estado.filtrosSelecionados) || estado.filtrosSelecionados.length === 0) {
+                estado.filtrosSelecionados = ['todos'];
+            }
+            return estado.filtrosSelecionados;
+        }
+        function atualizarBotoesFiltroDashboard() {
+            const ativos = obterFiltrosAtivosDashboard();
+            elementos.filterBtns.forEach(botao => {
+                const filtro = botao.dataset.filter || 'todos';
+                botao.classList.toggle('active', ativos.includes(filtro));
+            });
+        }
+        function alternarFiltroDashboard(filtroSelecionado) {
+            if (!filtroSelecionado || filtroSelecionado === 'todos') {
+                estado.filtrosSelecionados = ['todos'];
+                return;
+            }
+            const atuais = Array.isArray(estado.filtrosSelecionados)
+                ? estado.filtrosSelecionados.filter(Boolean)
+                : [];
+            const conjunto = new Set(atuais);
+            conjunto.delete('todos');
+            if (conjunto.has(filtroSelecionado)) {
+                conjunto.delete(filtroSelecionado);
+            } else {
+                conjunto.add(filtroSelecionado);
+            }
+            if (conjunto.size === 0) {
+                conjunto.add('todos');
+            }
+            estado.filtrosSelecionados = Array.from(conjunto);
+        }
         // Renderizar lista de armários no dashboard
         function renderizarArmarios() {
             elementos.armariosContainer.innerHTML = '';
@@ -5189,8 +5230,9 @@
                 return correspondePerfil && correspondeUnidade;
             });
             // Aplicar filtro
-            if (estado.filtroAtual !== 'todos') {
-                armariosParaExibir = armariosParaExibir.filter(a => a.status === estado.filtroAtual);
+            const filtrosAtivos = obterFiltrosAtivosDashboard();
+            if (!filtrosAtivos.includes('todos')) {
+                armariosParaExibir = armariosParaExibir.filter(a => filtrosAtivos.includes(a.status));
             }
             armariosParaExibir.forEach(armario => {
                 const card = document.createElement('div');
