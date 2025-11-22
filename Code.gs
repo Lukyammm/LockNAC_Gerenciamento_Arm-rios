@@ -2473,6 +2473,15 @@ function getPlanilhaLiberacao(parametros) {
     var dataInicio = interpretarDataParametroSeguro(dataInicioParametro, timezone);
     var dataFim = interpretarDataParametroSeguro(dataFimParametro, timezone);
 
+    var pacienteFiltroNormalizado = normalizarTextoBasico(pacienteFiltroTexto);
+    var prontuarioFiltroNormalizado = normalizarTextoBasico(prontuarioFiltroTexto);
+    var tokensPacienteFiltro = pacienteFiltroNormalizado
+      ? pacienteFiltroNormalizado.split(/\s+/).filter(function(token) { return token; })
+      : [];
+    var tokensProntuarioFiltro = prontuarioFiltroNormalizado
+      ? prontuarioFiltroNormalizado.split(/\s+/).filter(function(token) { return token; })
+      : [];
+
     var filtroTextoAtivo = tokensPacienteFiltro.length > 0 || tokensProntuarioFiltro.length > 0;
     var aplicarFiltroData = !filtroTextoAtivo;
 
@@ -2507,15 +2516,6 @@ function getPlanilhaLiberacao(parametros) {
     if (aplicarFiltroData && (!chaveInicio || !chaveFim)) {
       return { success: false, error: 'Informe um período válido para realizar a busca.' };
     }
-
-    var pacienteFiltroNormalizado = normalizarTextoBasico(pacienteFiltroTexto);
-    var prontuarioFiltroNormalizado = normalizarTextoBasico(prontuarioFiltroTexto);
-    var tokensPacienteFiltro = pacienteFiltroNormalizado
-      ? pacienteFiltroNormalizado.split(/\s+/).filter(function(token) { return token; })
-      : [];
-    var tokensProntuarioFiltro = prontuarioFiltroNormalizado
-      ? prontuarioFiltroNormalizado.split(/\s+/).filter(function(token) { return token; })
-      : [];
 
     function contemTodosTokens(textoNormalizado, tokens) {
       if (!tokens.length) {
