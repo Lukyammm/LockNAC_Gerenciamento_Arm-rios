@@ -1015,7 +1015,39 @@ function determinarResponsavelRegistro(valorPreferencial) {
   if (valorPreferencial !== undefined && valorPreferencial !== null) {
     var texto = valorPreferencial.toString().trim();
     if (texto) {
-  return texto;
+      return texto;
+    }
+  }
+
+  if (usuarioContextoRequisicao) {
+    return usuarioContextoRequisicao;
+  }
+
+  try {
+    var usuarioAtivo = Session.getActiveUser();
+    if (usuarioAtivo && typeof usuarioAtivo.getEmail === 'function') {
+      var emailAtivo = usuarioAtivo.getEmail();
+      if (emailAtivo) {
+        return emailAtivo;
+      }
+    }
+  } catch (erroUsuarioAtivo) {
+    // Ignora erro ao obter usuário ativo
+  }
+
+  try {
+    var usuarioEfetivo = Session.getEffectiveUser();
+    if (usuarioEfetivo && typeof usuarioEfetivo.getEmail === 'function') {
+      var emailEfetivo = usuarioEfetivo.getEmail();
+      if (emailEfetivo) {
+        return emailEfetivo;
+      }
+    }
+  } catch (erroUsuarioEfetivo) {
+    // Ignora erro ao obter usuário efetivo
+  }
+
+  return '';
 }
 
 function obterDataValida(valor) {
@@ -1058,35 +1090,6 @@ function adicionarDias(data, dias) {
   var novaData = new Date(data.getTime());
   novaData.setDate(novaData.getDate() + dias);
   return novaData;
-}
-  }
-
-  if (usuarioContextoRequisicao) {
-    return usuarioContextoRequisicao;
-  }
-  try {
-    var usuarioAtivo = Session.getActiveUser();
-    if (usuarioAtivo && typeof usuarioAtivo.getEmail === 'function') {
-      var emailAtivo = usuarioAtivo.getEmail();
-      if (emailAtivo) {
-        return emailAtivo;
-      }
-    }
-  } catch (erroUsuarioAtivo) {
-    // Ignora erro ao obter usuário ativo
-  }
-  try {
-    var usuarioEfetivo = Session.getEffectiveUser();
-    if (usuarioEfetivo && typeof usuarioEfetivo.getEmail === 'function') {
-      var emailEfetivo = usuarioEfetivo.getEmail();
-      if (emailEfetivo) {
-        return emailEfetivo;
-      }
-    }
-  } catch (erroUsuarioEfetivo) {
-    // Ignora erro ao obter usuário efetivo
-  }
-  return '';
 }
 
 function obterDataHoraAtualFormatada() {
