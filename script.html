@@ -1,6 +1,7 @@
 <script>
         // URL do Google Apps Script - ATUALIZE COM SUA URL
         const SCRIPT_URL = 'https://script.google.com/a/macros/isgh.org.br/s/AKfycbzbGb6sQR1auYsyTB-kwPos7Cd7swLuTUDiAzzpwTPW2cj76ykYzKYgBDXA-g5ef7pbpw/exec';
+        const DESCARTE_HABILITADO = false;
         // Estado da aplicação
         function criarEstadoLiberacaoInicial() {
             return {
@@ -63,7 +64,7 @@
                 usuarioAutenticado: null,
                 liberacao: criarEstadoLiberacaoInicial(),
                 ocupacaoAcompanhantes: criarEstadoOcupacaoAcompanhantesInicial(),
-                descarte: criarEstadoDescarteInicial()
+                descarte: DESCARTE_HABILITADO ? criarEstadoDescarteInicial() : null
             };
         }
         let estado = criarEstadoInicial();
@@ -1670,13 +1671,18 @@
 
                 const carregamentoUnidades = await executarCarregamentoSeguro('carregar unidades', carregarUnidades);
                 const carregamentoSetores = await executarCarregamentoSeguro('carregar setores', carregarSetores);
-                const demaisCarregamentos = await Promise.all([
+                const carregamentosParalelos = [
                     executarCarregamentoSeguro('carregar armários', () => carregarArmarios({ forcarAtualizacao: true })),
                     executarCarregamentoSeguro('carregar usuários', carregarUsuarios),
                     executarCarregamentoSeguro('carregar estatísticas', carregarEstatisticas),
-                    executarCarregamentoSeguro('carregar notificações', carregarNotificacoes),
-                    executarCarregamentoSeguro('carregar descarte', carregarDescarte)
-                ]);
+                    executarCarregamentoSeguro('carregar notificações', carregarNotificacoes)
+                ];
+
+                if (DESCARTE_HABILITADO) {
+                    carregamentosParalelos.push(executarCarregamentoSeguro('carregar descarte', carregarDescarte));
+                }
+
+                const demaisCarregamentos = await Promise.all(carregamentosParalelos);
 
                 const resultados = [carregamentoUnidades, carregamentoSetores, ...demaisCarregamentos];
                 const houveSucesso = resultados.some(item => item.sucesso);
@@ -1736,6 +1742,10 @@
             return false;
         }
         async function carregarDescarte() {
+            if (!DESCARTE_HABILITADO) {
+                estado.descarte = criarEstadoDescarteInicial();
+                return true;
+            }
             if (!estado.autenticado) {
                 return false;
             }
@@ -1957,11 +1967,16 @@
         async function atualizarDadosPosOperacao(mensagemCarregamento = 'Atualizando informações...', posAtualizacaoLocal) {
             const finalizarOverlay = mostrarOverlayCarregamento(mensagemCarregamento);
             try {
-                const [resultadoArmarios, resultadoEstatisticas, resultadoDescarte] = await Promise.allSettled([
+                const promessas = [
                     carregarArmarios({ forcarAtualizacao: true }),
-                    carregarEstatisticas(),
-                    carregarDescarte()
-                ]);
+                    carregarEstatisticas()
+                ];
+
+                if (DESCARTE_HABILITADO) {
+                    promessas.push(carregarDescarte());
+                }
+
+                const [resultadoArmarios, resultadoEstatisticas, resultadoDescarte] = await Promise.allSettled(promessas);
 
                 if (resultadoArmarios.status === 'rejected') {
                     console.error('Erro ao recarregar armários após operação:', resultadoArmarios.reason);
@@ -1972,7 +1987,7 @@
                 if (resultadoEstatisticas.status === 'rejected') {
                     console.error('Erro ao atualizar estatísticas após operação:', resultadoEstatisticas.reason);
                 }
-                if (resultadoDescarte && resultadoDescarte.status === 'rejected') {
+                if (DESCARTE_HABILITADO && resultadoDescarte && resultadoDescarte.status === 'rejected') {
                     console.error('Erro ao atualizar descarte após operação:', resultadoDescarte.reason);
                 }
 
@@ -2645,6 +2660,7 @@
             }
         }
         function renderizarDescarte() {
+            if (!DESCARTE_HABILITADO) return;
             const resumo = estado.descarte?.resumo || obterResumoDescartePadrao();
             if (elementos.descarteVencido) elementos.descarteVencido.textContent = resumo.vencido || 0;
             if (elementos.descarteAlerta) elementos.descarteAlerta.textContent = resumo.alerta || 0;
