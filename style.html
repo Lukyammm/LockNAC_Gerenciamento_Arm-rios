@@ -2056,6 +2056,24 @@
             color: var(--danger-color);
             display: none;
         }
+        .wizard-feedback {
+            font-size: 0.85rem;
+            margin-top: 6px;
+            color: color-mix(in srgb, var(--text-color) 80%, black 20%);
+            display: none;
+        }
+        .wizard-feedback.visible {
+            display: block;
+        }
+        .wizard-feedback.warning {
+            color: var(--warning-color);
+        }
+        .wizard-feedback.success {
+            color: var(--success-color);
+        }
+        .wizard-feedback.error {
+            color: var(--danger-color);
+        }
         .wizard-field.invalid .wizard-error {
             display: block;
         }
