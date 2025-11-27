@@ -5754,11 +5754,11 @@
         }
         function aplicarMascaraLeito(valor) {
             const texto = (valor || '').toString();
-            const possuiPrefixoLetra = /^[A-Za-z]/.test(texto);
             const somenteAlfanumerico = texto.replace(/[^A-Za-z0-9]/g, '');
 
-            const prefixo = possuiPrefixoLetra ? somenteAlfanumerico.charAt(0).toUpperCase() : '';
-            const digitos = (possuiPrefixoLetra ? somenteAlfanumerico.slice(1) : somenteAlfanumerico).replace(/\D/g, '');
+            const prefixoEncontrado = somenteAlfanumerico.match(/^[A-Za-z]+/);
+            const prefixo = prefixoEncontrado ? prefixoEncontrado[0].toUpperCase() : '';
+            const digitos = somenteAlfanumerico.slice(prefixo.length).replace(/\D/g, '');
 
             const primeiraParte = digitos.slice(0, 3);
             const restante = digitos.slice(3);
