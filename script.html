@@ -658,6 +658,7 @@
             termoSetor: document.getElementById('termo-setor'),
             termoLeito: document.getElementById('termo-leito'),
             termoProntuario: document.getElementById('termo-prontuario'),
+            termoProntuarioFeedback: document.getElementById('termo-prontuario-feedback'),
             termoSetorLabel: document.querySelector("label[for='termo-setor']"),
             termoLeitoLabel: document.querySelector("label[for='termo-leito']"),
             termoModalClose: document.getElementById('termo-modal-close'),
@@ -1260,6 +1261,36 @@
             garantirOpcaoSetor(texto);
             select.value = texto;
         }
+        function limparDadosPacienteTermo() {
+            const campoPaciente = document.getElementById('termo-paciente');
+            const campoNascimento = elementos.termoNascimento || document.getElementById('termo-nascimento');
+            const campoLeito = elementos.termoLeito || document.getElementById('termo-leito');
+
+            if (campoPaciente) campoPaciente.value = '';
+            if (campoNascimento) {
+                campoNascimento.value = '';
+                delete campoNascimento.dataset.isoValue;
+            }
+            definirSetorTermo('');
+            if (campoLeito) campoLeito.value = '';
+        }
+        function atualizarFeedbackProntuarioTermo(mensagem = '', tipo = 'info') {
+            const areaFeedback = elementos.termoProntuarioFeedback || document.getElementById('termo-prontuario-feedback');
+            if (!areaFeedback) {
+                return;
+            }
+            const tipos = ['warning', 'success', 'error', 'info'];
+            tipos.forEach(cls => areaFeedback.classList.remove(cls));
+            if (mensagem) {
+                areaFeedback.textContent = mensagem;
+                areaFeedback.classList.add('visible');
+                const classeTipo = tipos.includes(tipo) ? tipo : 'info';
+                areaFeedback.classList.add(classeTipo);
+            } else {
+                areaFeedback.textContent = '';
+                areaFeedback.classList.remove('visible');
+            }
+        }
         async function preencherPacientePorProntuario(opcoes = {}) {
             const campoProntuario = elementos.termoProntuario || document.getElementById('termo-prontuario');
             if (!campoProntuario) {
@@ -1278,6 +1309,7 @@
 
             const carregamentoId = ++termoBuscaProntuarioId;
             setEstadoCarregamentoTermo(true, 'Buscando dados do paciente na Base Vitae...');
+            atualizarFeedbackProntuarioTermo('Buscando dados do paciente na Base Vitae...', 'info');
 
             try {
                 const resposta = await callGoogleScript('buscarPacienteBaseVitae', { prontuario });
@@ -1285,29 +1317,34 @@
                     return;
                 }
                 termoUltimoProntuarioBuscado = prontuario;
-                if (resposta.success && resposta.data) {
-                    const { nome, setor, leito } = resposta.data;
-                    if (nome) {
-                        document.getElementById('termo-paciente').value = nome;
-                    }
-                    if (setor) {
-                        definirSetorTermo(setor);
-                    }
-                    if (leito) {
-                        document.getElementById('termo-leito').value = aplicarMascaraLeito(leito);
-                    }
-                    salvarRascunhoTermo();
-                } else if (resposta.error && !resposta._erroNotificado) {
-                    mostrarErro(resposta.error);
+                const dadosPaciente = resposta.success ? resposta.data : null;
+                if (dadosPaciente && (dadosPaciente.nome || dadosPaciente.setor || dadosPaciente.leito)) {
+                    const { nome = '', setor = '', leito = '' } = dadosPaciente;
+                    document.getElementById('termo-paciente').value = nome;
+                    definirSetorTermo(setor);
+                    document.getElementById('termo-leito').value = aplicarMascaraLeito(leito);
+                    atualizarFeedbackProntuarioTermo('Dados do paciente preenchidos automaticamente pela Base Vitae.', 'success');
+                } else {
+                    limparDadosPacienteTermo();
+                    const mensagemAviso = resposta && resposta.error
+                        ? resposta.error
+                        : 'Nenhum paciente encontrado para o prontuário informado. Preencha os dados manualmente.';
+                    atualizarFeedbackProntuarioTermo(mensagemAviso, 'warning');
                 }
+                salvarRascunhoTermo();
             } catch (erroBusca) {
                 console.error('Erro ao buscar paciente pelo prontuário:', erroBusca);
-                if (erroBusca && erroBusca.mensagemUsuario) {
-                    mostrarErro(erroBusca.mensagemUsuario);
-                }
+                const mensagemErro = (erroBusca && erroBusca.mensagemUsuario)
+                    ? erroBusca.mensagemUsuario
+                    : 'Não foi possível buscar o paciente. Verifique a conexão e preencha os dados manualmente.';
+                limparDadosPacienteTermo();
+                atualizarFeedbackProntuarioTermo(mensagemErro, 'error');
             } finally {
                 if (carregamentoId === termoBuscaProntuarioId) {
                     setEstadoCarregamentoTermo(false);
+                    if (!elementos.termoProntuarioFeedback?.textContent) {
+                        atualizarFeedbackProntuarioTermo('', 'info');
+                    }
                 }
             }
         }
